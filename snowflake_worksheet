@@ -1,3 +1,4 @@
+-----L-1***************
 alter user PRADEEP set default_role = 'SYSADMIN';
 alter user PRADEEP set default_warehouse = 'COMPUTE_WH';
 alter user PRADEEP set default_namespace = 'UTIL_DB.PUBLIC';
@@ -37,7 +38,7 @@ select util_db.public.grader(step, (actual = expected), actual, expected, descri
  ,123 as expected
  ,'Dora is working!' as description); 
 
-----------
+----------L-2****************
 ALTER USER pradeep SET DEFAULT_ROLE = 'SYSADMIN';
 create database AGS_GAME_AUDIENCE;
 use database AGS_GAME_AUDIENCE;
@@ -59,8 +60,14 @@ create storage integration st_int_s3
 SHow INTEGRATIONS;
 DESC INTEGRATION st_int_s3;
 AGS_GAME_AUDIENCE.RAW.FF_JSON_LOGS
-desc stage stg_pradeep;
 
+desc stage stg_pradeep;
+desc stage stg_pradeep2;---s3://uni-kishore
+list @stg_pradeep2/kickoff;--List the file in stage
+list @stg_pradeep2/updated_feed;
+select $1 from
+@stg_pradeep2
+(file_format=>AGS_GAME_AUDIENCE.RAW.FF_JSON_LOGS)
 --viewing the data in stage
 select $1 from
 @stg_pradeep
@@ -68,10 +75,10 @@ select $1 from
 
 --load into table
 copy into AGS_GAME_AUDIENCE.RAW.GAME_LOGS
-from @stg_pradeep
+from @stg_pradeep--s3://stg-pradeep
 file_format=(format_name=AGS_GAME_AUDIENCE.RAW.FF_JSON_LOGS)
 
---select from table
+
 select count(*) from AGS_GAME_AUDIENCE.RAW.GAME_LOGS
 
 ---selecting records after parsing JSON
@@ -110,4 +117,282 @@ select GRADER(step, (actual = expected), actual, expected, description) as grade
 , 'Project DB and Log File Set Up Correctly' as description
 ); 
 
+-----------L-3**************
+select current_timestamp();
+--Change the Time Zone for Your Current Worksheet
 
+--what time zone is your account(and/or session) currently set to? Is it -0700?
+select current_timestamp();
+alter session set timezone = 'Africa/Nairobi';
+select current_timestamp();
+alter session set timezone = 'Pacific/Funafuti';
+select current_timestamp();
+
+alter session set timezone = 'Asia/Shanghai';
+select current_timestamp();
+alter session set timezone = 'Asia/Kolkata';
+select current_timestamp();
+--show the account parameter called timezone
+show parameters like 'timezone';
+
+----------Laoding the updated_feed into GAME_LOGS
+
+desc stage stg_pradeep2;---s3://uni-kishore
+list @stg_pradeep2/kickoff;--List the file in stage
+list @stg_pradeep2/updated_feed;
+desc stage stg_pradeep2
+--load into table
+truncate table AGS_GAME_AUDIENCE.RAW.GAME_LOGS;
+copy into AGS_GAME_AUDIENCE.RAW.GAME_LOGS
+from @stg_pradeep2
+file_format=(format_name=AGS_GAME_AUDIENCE.RAW.FF_JSON_LOGS)
+
+select * from GAME_LOGS;
+select * from LOGS;
+
+
+---Creating View
+--drop view LOGS;
+create or replace view LOGS as 
+select --RAW_LOG:agent::text as AGENT,
+        RAW_LOG:ip_address::text as ip_address,
+        RAW_LOG:datetime_iso8601::TIMESTAMP_NTZ as datetime_iso8601,
+        RAW_LOG:game_subscription_type::text as game_subscription_type,
+        RAW_LOG:user_event::text as USER_EVENT,
+        RAW_LOG:user_login::text as user_login,
+        *
+        from GAME_LOGS where RAW_LOG:ip_address::text is not null;
+ --select from view       
+select * from LOGS;
+
+--looking for empty AGENT column
+select * 
+from ags_game_audience.raw.LOGS
+where agent is null;
+
+--looking for non-empty IP_ADDRESS column
+select 
+RAW_LOG:ip_address::text as IP_ADDRESS
+,*
+from ags_game_audience.raw.LOGS
+where RAW_LOG:ip_address::text is not null;
+
+---
+select * from LOGS
+where user_login ilike '%Prajina%';
+
+select * from LOGS
+where user_login like '%prajina%';
+
+---TEST
+select GRADER(step, (actual = expected), actual, expected, description) as graded_results from
+(
+SELECT
+   'DNGW02' as step
+   ,( select sum(tally) from(
+        select (count(*) * -1) as tally
+        from ags_game_audience.raw.logs 
+        union all
+        select count(*) as tally
+        from ags_game_audience.raw.game_logs)     
+     ) as actual
+   ,250 as expected
+   ,'View is filtered' as description
+); 
+----L-4***********
+---finding location from IP
+
+select parse_ip('100.41.16.160','inet');
+select parse_ip('100.41.16.160','inet'):host;
+select parse_ip('100.41.16.160','inet'):family;
+select parse_ip('100.41.16.160','inet'):ipv4;
+
+-----
+--Look up Kishore and Prajina's Time Zone in the IPInfo share using his headset's IP Address with the PARSE_IP function.
+select start_ip, end_ip, start_ip_int, end_ip_int, city, region, country, timezone
+from IPINFO_GEOLOC.demo.location
+where parse_ip('100.41.16.160', 'inet'):ipv4 --Kishore's Headset's IP Address
+BETWEEN start_ip_int AND end_ip_int;
+
+--Join the log and location tables to add time zone to each row using the PARSE_IP function.
+select logs.*
+       , loc.city
+       , loc.region
+       , loc.country
+       , loc.timezone
+from AGS_GAME_AUDIENCE.RAW.LOGS logs
+join IPINFO_GEOLOC.demo.location loc
+where parse_ip(logs.ip_address, 'inet'):ipv4 
+BETWEEN start_ip_int AND end_ip_int;
+
+
+--Use two functions supplied by IPShare to help with an efficient IP Lookup Process!
+SELECT logs.ip_address
+, logs.user_login
+, logs.user_event
+, logs.datetime_iso8601
+, city
+, region
+, country
+, timezone 
+from AGS_GAME_AUDIENCE.RAW.LOGS logs
+JOIN IPINFO_GEOLOC.demo.location loc 
+ON IPINFO_GEOLOC.public.TO_JOIN_KEY(logs.ip_address) = loc.join_key
+AND IPINFO_GEOLOC.public.TO_INT(logs.ip_address) 
+BETWEEN start_ip_int AND end_ip_int;
+
+
+-----convert time zone
+
+--Use two functions supplied by IPShare to help with an efficient IP Lookup Process!
+SELECT logs.ip_address
+, logs.user_login
+, logs.user_event
+, logs.datetime_iso8601
+, city
+, region
+, country
+, timezone
+,CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601) as game_event_ltz
+,DAYNAME(CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601)) as DOW_NAME
+from AGS_GAME_AUDIENCE.RAW.LOGS logs
+JOIN IPINFO_GEOLOC.demo.location loc 
+ON IPINFO_GEOLOC.public.TO_JOIN_KEY(logs.ip_address) = loc.join_key
+AND IPINFO_GEOLOC.public.TO_INT(logs.ip_address) 
+BETWEEN start_ip_int AND end_ip_int;
+
+
+---------------
+-- Your role should be SYSADMIN
+-- Your database menu should be set to AGS_GAME_AUDIENCE
+-- The schema should be set to RAW
+
+
+--a Look Up table to convert from hour number to "time of day name"
+
+drop table if exists ags_game_audience.raw.time_of_day_lu;
+create table ags_game_audience.raw.time_of_day_lu
+(  hour number
+   ,tod_name varchar(25)
+);
+
+--insert statement to add all 24 rows to the table
+insert into time_of_day_lu
+values
+(6,'Early morning'),
+(7,'Early morning'),
+(8,'Early morning'),
+(9,'Mid-morning'),
+(10,'Mid-morning'),
+(11,'Late morning'),
+(12,'Late morning'),
+(13,'Early afternoon'),
+(14,'Early afternoon'),
+(15,'Mid-afternoon'),
+(16,'Mid-afternoon'),
+(17,'Late afternoon'),
+(18,'Late afternoon'),
+(19,'Early evening'),
+(20,'Early evening'),
+(21,'Late evening'),
+(22,'Late evening'),
+(23,'Late evening'),
+(0,'Late at night'),
+(1,'Late at night'),
+(2,'Late at night'),
+(3,'Toward morning'),
+(4,'Toward morning'),
+(5,'Toward morning');
+
+
+--Check your table to see if you loaded it properly
+select tod_name, listagg(hour,',') 
+from time_of_day_lu
+group by tod_name;
+
+---------Adding Time of day column and calculation logic for it
+--Use two functions supplied by IPShare to help with an efficient IP Lookup Process!
+SELECT logs.ip_address
+, logs.user_login 
+, logs.user_event
+, logs.datetime_iso8601
+, city
+, region
+, country
+, timezone
+,CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601) as game_event_ltz
+,DAYNAME(CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601)) as DOW_NAME
+,HOUR(CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601)) ltz_hr
+,dlu.tod_name
+from AGS_GAME_AUDIENCE.RAW.LOGS logs
+JOIN IPINFO_GEOLOC.demo.location loc 
+ON IPINFO_GEOLOC.public.TO_JOIN_KEY(logs.ip_address) = loc.join_key
+join time_of_day_lu dlu on HOUR(CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601))=dlu.hour
+AND IPINFO_GEOLOC.public.TO_INT(logs.ip_address) 
+BETWEEN start_ip_int AND end_ip_int;
+
+---------RENAMING COLUMNS****
+--Use two functions supplied by IPShare to help with an efficient IP Lookup Process!
+SELECT logs.ip_address
+, logs.user_login as GAMER_NAME
+, logs.user_event as GAME_EVENT_NAME
+, logs.datetime_iso8601 as GAME_EVENT_UTC
+, city
+, region
+, country
+, timezone as GAMER_LTZ_NAME
+,CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601) as game_event_ltz
+,DAYNAME(CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601)) as DOW_NAME
+,HOUR(CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601)) ltz_hr
+,dlu.tod_name
+from AGS_GAME_AUDIENCE.RAW.LOGS logs
+JOIN IPINFO_GEOLOC.demo.location loc 
+ON IPINFO_GEOLOC.public.TO_JOIN_KEY(logs.ip_address) = loc.join_key
+join time_of_day_lu dlu on HOUR(CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601))=dlu.hour
+AND IPINFO_GEOLOC.public.TO_INT(logs.ip_address) 
+BETWEEN start_ip_int AND end_ip_int;
+
+--CTAS to as ENHANCED table
+
+create table ags_game_audience.enhanced.logs_enhanced as(
+ SELECT logs.ip_address
+, logs.user_login as GAMER_NAME
+, logs.user_event as GAME_EVENT_NAME
+, logs.datetime_iso8601 as GAME_EVENT_UTC
+, city
+, region
+, country
+, timezone as GAMER_LTZ_NAME
+,CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601) as game_event_ltz
+,DAYNAME(CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601)) as DOW_NAME
+,HOUR(CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601)) ltz_hr
+,dlu.tod_name
+from AGS_GAME_AUDIENCE.RAW.LOGS logs
+JOIN IPINFO_GEOLOC.demo.location loc 
+ON IPINFO_GEOLOC.public.TO_JOIN_KEY(logs.ip_address) = loc.join_key
+join time_of_day_lu dlu on HOUR(CONVERT_TIMEZONE('UTC',timezone,logs.datetime_iso8601))=dlu.hour
+AND IPINFO_GEOLOC.public.TO_INT(logs.ip_address) 
+BETWEEN start_ip_int AND end_ip_int
+);
+
+---Viewing data from Enhanced table
+
+select * from ags_game_audience.enhanced.logs_enhanced;
+
+---DORA TEST L-4
+
+select GRADER(step, (actual = expected), actual, expected, description) as graded_results from
+(
+  SELECT
+   'DNGW03' as step
+   ,( select count(*) 
+      from ags_game_audience.enhanced.logs_enhanced
+      where dow_name = 'Sat'
+      and tod_name = 'Early evening'   
+      and gamer_name like '%prajina'
+     ) as actual
+   ,2 as expected
+   ,'Playing the game on a Saturday evening' as description
+); 
+
+----L-5**********************
