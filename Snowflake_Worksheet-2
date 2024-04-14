@@ -1,0 +1,75 @@
+
+  ------------------------------------************************************
+--Creating A pipe with AWS acct
+
+SELECT SYSTEM$GET_AWS_SNS_IAM_POLICY('arn:aws:sns:us-east-1:905418410478:dngw_topic');---for getting the snopipe policy to be added at the end of access policy in AWS SNS topic.
+
+---Create SNOW PIPE automatically load data into table from AWS bucket put event.
+
+---------------------Creating Table to populate data from SNOWPIPE created from AWS S3
+
+show stages;
+ Create table ED_PIPELINE_LOGS_PRADEEP AS
+   SELECT 
+    METADATA$FILENAME as log_file_name --new metadata column
+  , METADATA$FILE_ROW_NUMBER as log_file_row_id --new metadata column
+  , current_timestamp(0) as load_ltz --new local time of load
+  , get($1,'datetime_iso8601')::timestamp_ntz as DATETIME_ISO8601
+  , get($1,'user_event')::text as USER_EVENT
+  , get($1,'user_login')::text as USER_LOGIN
+  , get($1,'ip_address')::text as IP_ADDRESS    
+  FROM @AGS_GAME_AUDIENCE.RAW.STG_PRADEEP
+  (file_format => 'ff_json_logs');
+
+
+-----------------
+CREATE OR REPLACE PIPE PIPE_GET_NEW_FILES_STG_PRADEEP
+auto_ingest=true
+aws_sns_topic='arn:aws:sns:us-east-1:905418410478:dngw_topic'
+AS 
+COPY INTO ED_PIPELINE_LOGS_PRADEEP
+FROM (
+    SELECT 
+    METADATA$FILENAME as log_file_name 
+  , METADATA$FILE_ROW_NUMBER as log_file_row_id 
+  , current_timestamp(0) as load_ltz 
+  , get($1,'datetime_iso8601')::timestamp_ntz as DATETIME_ISO8601
+  , get($1,'user_event')::text as USER_EVENT
+  , get($1,'user_login')::text as USER_LOGIN
+  , get($1,'ip_address')::text as IP_ADDRESS    
+  FROM @AGS_GAME_AUDIENCE.RAW.STG_PRADEEP
+)
+file_format = (format_name = ff_json_logs);
+
+select * from ED_PIPELINE_LOGS_PRADEEP;
+
+
+----------------------Creating Table to test data loading from SF Managed Satgae(INTERNAL not S3)
+
+
+---------------------Creating Table to populate data from SNOWPIPE created from AWS S3
+
+show stages;
+LIST @~ --USER STAGE
+LIST @%ED_PIPELINE_LOGS_PRADEEP --TABLE STG
+LIST @%GAME_LOGS --TABLE STG
+LIST @SF_MANAGED_STG_PRADEEP; --NAMED STAGE
+
+ --PUT file://E:\Snowflake\Essentials_Badge5/DNGW_Sample_from_Agnies_Game.json @~ AUTO_COMPRESS=TRUE; --NOT SUpproted in SNOWSIGHT UI
+
+ Create table SF_MNGD_LOGS_PRADEEP AS
+   SELECT 
+    METADATA$FILENAME as log_file_name --new metadata column
+  , METADATA$FILE_ROW_NUMBER as log_file_row_id --new metadata column
+  , current_timestamp(0) as load_ltz --new local time of load
+  , get($1,'datetime_iso8601')::timestamp_ntz as DATETIME_ISO8601
+  , get($1,'user_event')::text as USER_EVENT
+  , get($1,'user_login')::text as USER_LOGIN
+  , get($1,'ip_address')::text as IP_ADDRESS    
+  FROM @AGS_GAME_AUDIENCE.RAW.SF_MANAGED_STG_PRADEEP
+  (file_format => 'ff_json_logs');
+
+  select * from SF_MNGD_LOGS_PRADEEP;
+
+  ------------------
+   SHOW STREAMS 
