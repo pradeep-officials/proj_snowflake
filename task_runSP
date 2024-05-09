@@ -1,0 +1,8 @@
+create or replace task AGS_GAME_AUDIENCE.RAW.RUN_SNOWPARK_CODE_THROUGH_SP
+warehouse=PRADEEP_WH
+schedule='5 minutes'AS
+CALL SP_SNOWPARK_JSON_PROCESSING();
+
+Alter task if exists RUN_SNOWPARK_CODE_THROUGH_SP resume;
+ 
+	
