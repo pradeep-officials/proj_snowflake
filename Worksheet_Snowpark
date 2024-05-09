@@ -21,20 +21,21 @@ def main(session: snowpark.Session):
     print(stage_df.print_schema())
     print(stage_df.schema)
     stage_df.show()
-
-    # df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
-    # df2=df.select(parse_json(df["a"]).alias("result"))
-    # print(df.print_schema())
+    print(stage_df.print_schema())
     #********Parsing stage_df
-    stage_df_parsed=stage_df.select("$1:user_event").show()
-    
-    # select(parse_json(stage_df["$1"]).alias("result"))
+    stage_df_parsed=stage_df.select_expr("$1:datetime_iso8601::TIMESTAMP_NTZ as datetime_iso8601" ,
+                                         "$1:ip_address::text as ip_address","$1:user_event::text as user_event",
+                                         "$1:user_login::text as user_login")
 
-    # stage_df_parsed2=stage_df_parsed.()
+    stage_df_parsed.show()
+    print(stage_df_parsed.schema)
+    #******Writing DF data to snowflake table
+    stage_df_parsed.write.mode("overwrite").saveAsTable(table_name="raw_table_from_df",table_type="temporary")
+    stage_df_parsed.write.mode("overwrite").save_as_table("AGS_GAME_AUDIENCE.RAW.raw_table_from_df")#Permannet Table
 
-    
-
-    
+    print("**************************************************************")
+    print("Displaying data from table created from Data Frame")
+    session.sql("select * from raw_table_from_df").show()
     #*******Loading Snowflake table
     raw_df = session.table('AGS_GAME_AUDIENCE.ENHANCED.LOGS_ENHANCED')
     
@@ -48,4 +49,4 @@ def main(session: snowpark.Session):
     Df_filtered4=Df_filtered3.with_column("NEW_LTZ_HR",col("LTZ_HR")+1)
     # snow_df_revenue.show()
     # Return value will appear in the Results tab.
-    return stage_df_parsed
+    return stage_df
