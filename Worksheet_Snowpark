@@ -30,8 +30,9 @@ def main(session: snowpark.Session):
     stage_df_parsed.show()
     print(stage_df_parsed.schema)
     #******Writing DF data to snowflake table
-    stage_df_parsed.write.mode("overwrite").saveAsTable(table_name="raw_table_from_df",table_type="temporary")
+    # stage_df_parsed.write.mode("overwrite").saveAsTable(table_name="raw_table_from_df",table_type="temporary")
     stage_df_parsed.write.mode("overwrite").save_as_table("AGS_GAME_AUDIENCE.RAW.raw_table_from_df")#Permannet Table
+    stage_df_parsed.write.mode("append").save_as_table("AGS_GAME_AUDIENCE.RAW.raw_table_from_df_append")#Permannet Table
 
     print("**************************************************************")
     print("Displaying data from table created from Data Frame")
