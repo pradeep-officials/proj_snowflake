@@ -1,0 +1,51 @@
+# The Snowpark package is required for Python Worksheets. 
+# You can add more packages by selecting them using the Packages control and then importing them.
+
+import snowflake.snowpark as snowpark
+from snowflake.snowpark.functions import col,parse_json
+from snowflake.snowpark import functions as F
+import sys
+import platform
+
+def main(session: snowpark.Session): 
+    print(platform.python_version())
+    print(sys.getdefaultencoding())
+    # Your code goes here, inside the "main" handler.
+    tableName = 'information_schema.packages'
+    dataframe = session.table(tableName).filter(col("language") == 'python')
+    
+    # Print a sample of the dataframe to standard output.
+    dataframe.show()
+    #********Reading a file from stage
+    stage_df=session.read.json("@UNI_KISHORE_PIPELINE/logs_101_110_0_0_0.json")
+    print(stage_df.print_schema())
+    print(stage_df.schema)
+    stage_df.show()
+
+    # df = session.create_dataframe([['{"key": "1"}']], schema=["a"])
+    # df2=df.select(parse_json(df["a"]).alias("result"))
+    # print(df.print_schema())
+    #********Parsing stage_df
+    stage_df_parsed=stage_df.select("$1:user_event").show()
+    
+    # select(parse_json(stage_df["$1"]).alias("result"))
+
+    # stage_df_parsed2=stage_df_parsed.()
+
+    
+
+    
+    #*******Loading Snowflake table
+    raw_df = session.table('AGS_GAME_AUDIENCE.ENHANCED.LOGS_ENHANCED')
+    
+    raw_df.show(20,60)
+    #*********Applying filter
+    Df_filtered=raw_df.filter(raw_df["GAME_EVENT_NAME"]=='login')#Way-1 for referrencing a column
+    Df_filtered2=Df_filtered.filter(Df_filtered.TOD_NAME=='Early afternoon')#Way-2 for referrencing a column
+    Df_filtered3=Df_filtered2.filter(col('LTZ_HR')=='14')#Way-3 for referrencing a column
+    # Df_filtered3.show()
+    #*****Adding new column
+    Df_filtered4=Df_filtered3.with_column("NEW_LTZ_HR",col("LTZ_HR")+1)
+    # snow_df_revenue.show()
+    # Return value will appear in the Results tab.
+    return stage_df_parsed
